@@ -22,6 +22,7 @@
 </header>
 
 <div class="bar">
+  <select id="group" aria-label="グループ"></select>
   <select id="sortKey" aria-label="並べ替え">
     <option value="name">ファイル名</option>
     <option value="imported">取り込んだ日</option>
@@ -38,9 +39,18 @@
 <p id="empty" class="empty" hidden>曲がありません。「取り込む」から「ファイル」の Dropbox などを開いて選んでください。</p>
 
 <details class="diag">
-  <summary>試作の確認用</summary>
+  <summary>情報</summary>
   <pre id="diag"></pre>
 </details>
+
+<dialog id="sheet" class="sheet">
+  <form method="dialog">
+    <p id="sheetTitle" class="sheet-title"></p>
+    <button class="btn" value="group">グループを変える</button>
+    <button class="btn danger" value="delete">削除</button>
+    <button class="btn" value="">やめる</button>
+  </form>
+</dialog>
 
 <footer class="player">
   <div id="nowTitle" class="now">（未選択）</div>
@@ -67,6 +77,12 @@
     <button class="btn" data-rate="1.5" type="button">1.5</button>
     <button class="btn" data-rate="2" type="button">2.0</button>
     <label class="auto"><input id="autoNext" type="checkbox"> 次へ</label>
+  </div>
+  <div class="ab">
+    <button id="abA" class="btn" type="button">A</button>
+    <button id="abB" class="btn" type="button">B</button>
+    <button id="abClear" class="btn" type="button">解除</button>
+    <span id="abText" class="muted"></span>
   </div>
   <audio id="audio" preload="auto"></audio>
 </footer>

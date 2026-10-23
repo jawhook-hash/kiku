@@ -7,6 +7,7 @@ const RESUME_MIN_SEC = 600;   // これより長い曲だけ続きから再生�
 const RESUME_BACK_SEC = 3;    // 再開するとき少し戻す
 const SAVE_EVERY_MS = 5000;   // 再生中に位置を保存する間隔
 const RATE_MIN = 0.5, RATE_MAX = 3;
+const ALL = "*";              // グループの絞り込み「すべて」（未分類は空文字）
 
 const $ = sel => document.querySelector(sel);
 const audio = $("#audio");
@@ -15,7 +16,7 @@ const collator = new Intl.Collator("ja", { numeric: true, sensitivity: "base" })
 /* ---------- 設定（端末内の小さな記録） ---------- */
 const settings = (() => {
   const KEY = "kiku-settings";
-  let s = { rate: 1, sortKey: "name", sortDir: "asc", autoNext: false };
+  let s = { rate: 1, sortKey: "name", sortDir: "asc", autoNext: false, group: ALL };
   try { Object.assign(s, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch {}
   s.save = () => { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch {} };
   return s;
@@ -104,16 +105,36 @@ const SORTS = {
   modified: (a, b) => a.lastModified - b.lastModified,
   duration: (a, b) => a.duration - b.duration,
 };
+const groupOf = t => t.group || "";
+
+/* 一覧に出す曲（グループで絞って並べ替えたもの）。「次へ」もこの順に進む */
 function sortedTracks() {
   const cmp = SORTS[settings.sortKey] || SORTS.name;
   const dir = settings.sortDir === "desc" ? -1 : 1;
-  return [...tracks].sort((a, b) => dir * cmp(a, b) || collator.compare(a.name, b.name));
+  const shown = settings.group === ALL ? tracks : tracks.filter(t => groupOf(t) === settings.group);
+  return [...shown].sort((a, b) => dir * cmp(a, b) || collator.compare(a.name, b.name));
 }
 const findTrack = id => tracks.find(t => t.id === id);
 const isResumable = t => t && t.duration >= RESUME_MIN_SEC;
 
+function renderGroups() {
+  const names = [...new Set(tracks.map(groupOf).filter(Boolean))].sort(collator.compare);
+  const hasNone = tracks.some(t => !groupOf(t));
+  if (settings.group !== ALL && !names.includes(settings.group) && !(settings.group === "" && hasNone)) {
+    settings.group = ALL;
+    settings.save();
+  }
+  const opts = [[ALL, "すべて"], ...names.map(n => [n, n])];
+  if (hasNone && names.length) opts.push(["", "未分類"]);
+  const sel = $("#group");
+  sel.replaceChildren(...opts.map(([value, label]) => new Option(label, value)));
+  sel.value = settings.group;
+  sel.hidden = names.length === 0;
+}
+
 function metaLine(t) {
   const parts = [t.duration ? fmtTime(t.duration) : "長さ不明", fmtSize(t.size)];
+  if (settings.group === ALL && groupOf(t)) parts.push(groupOf(t));
   if (settings.sortKey === "imported") parts.push("取込 " + fmtDate(t.importedAt));
   if (settings.sortKey === "modified") parts.push("日付 " + fmtDate(t.lastModified));
   if (isResumable(t) && t.position > 0) parts.push("続き " + fmtTime(t.position));
@@ -135,13 +156,13 @@ function renderList() {
     meta.className = "meta";
     meta.textContent = metaLine(t);
     info.append(name, meta);
-    const del = document.createElement("button");
-    del.className = "del";
-    del.type = "button";
-    del.textContent = "×";
-    del.setAttribute("aria-label", "削除");
-    del.addEventListener("click", e => { e.stopPropagation(); deleteTrack(t); });
-    li.append(info, del);
+    const more = document.createElement("button");
+    more.className = "del";
+    more.type = "button";
+    more.textContent = "…";
+    more.setAttribute("aria-label", "操作");
+    more.addEventListener("click", e => { e.stopPropagation(); openSheet(t); });
+    li.append(info, more);
     li.addEventListener("click", () => playTrack(t.id));
     ul.append(li);
   }
@@ -150,13 +171,44 @@ function renderList() {
   $("#sortDir").textContent = settings.sortDir === "desc" ? "降順" : "昇順";
 }
 
+/* 曲の「…」: グループを変える／削除 */
+function openSheet(t) {
+  const sheet = $("#sheet");
+  $("#sheetTitle").textContent = baseName(t.name);
+  sheet.returnValue = "";
+  sheet.addEventListener("close", () => {
+    if (sheet.returnValue === "group") changeGroup(t);
+    if (sheet.returnValue === "delete") deleteTrack(t);
+  }, { once: true });
+  sheet.showModal();
+}
+
+function askGroup(current) {
+  const g = prompt("グループ名（空欄なら未分類）", current);
+  return g === null ? null : g.trim();
+}
+
+async function changeGroup(t) {
+  const g = askGroup(groupOf(t));
+  if (g === null || g === groupOf(t)) return;
+  t.group = g;
+  await db.putMeta(t);
+  refreshList();
+}
+
 async function deleteTrack(t) {
   if (!confirm(`「${baseName(t.name)}」をアプリから削除します。\n（Dropbox などの元のファイルは残ります）`)) return;
   if (t.id === currentId) stopPlayback();
   await db.remove(t.id);
   tracks = tracks.filter(x => x.id !== t.id);
-  renderList();
+  refreshList();
   showStorage();
+}
+
+/* 曲の集まりや絞り込みが変わったとき */
+function refreshList() {
+  renderGroups();
+  renderList();
   preloadNext();
 }
 
@@ -183,6 +235,9 @@ function readDuration(blob) {
 
 async function importFiles(files) {
   const list = [...files];
+  // 「すべて」表示中ならグループ名を聞く。絞り込み中はそのグループに入れる
+  const group = settings.group === ALL ? askGroup("") : settings.group;
+  if (group === null) return;
   let added = 0, skipped = 0;
   for (const [i, f] of list.entries()) {
     if (tracks.some(t => t.name === f.name && t.size === f.size)) { skipped++; continue; }
@@ -196,6 +251,7 @@ async function importFiles(files) {
       importedAt: Date.now(),
       duration: await readDuration(f),
       position: 0,
+      group,
     };
     try {
       await db.add(meta, f);
@@ -208,8 +264,8 @@ async function importFiles(files) {
     renderList();
   }
   showMsg(`${added}曲を取り込みました` + (skipped ? `（同じ曲 ${skipped} 件は飛ばしました）` : ""));
+  refreshList();
   showStorage();
-  preloadNext();
 }
 
 /* ---------- 再生 ---------- */
@@ -292,6 +348,7 @@ async function playTrack(id) {
   const old = curUrl;
   curUrl = url;
   currentId = id;
+  clearAB();
   const start = startPosition(t);
   pendingStart = start > 0;
   audio.src = url;
@@ -324,6 +381,40 @@ function skip(sec) {
   const d = isFinite(audio.duration) ? audio.duration : Infinity;
   audio.currentTime = Math.min(d, Math.max(0, audio.currentTime + sec));
   updatePositionState();
+}
+
+/* ---------- 区間リピート ---------- */
+let ab = { a: null, b: null };
+
+function setA() {
+  if (!curUrl) return;
+  ab.a = audio.currentTime;
+  if (ab.b !== null && ab.b <= ab.a) ab.b = null;
+  renderAB();
+}
+function setB() {
+  if (!curUrl) return;
+  if (ab.a === null) { showMsg("先に A を押してください"); return; }
+  if (audio.currentTime <= ab.a + 0.5) { showMsg("B は A より後の位置で押してください"); return; }
+  ab.b = audio.currentTime;
+  audio.currentTime = ab.a;
+  renderAB();
+}
+function clearAB() {
+  ab = { a: null, b: null };
+  renderAB();
+}
+/* B を過ぎたら A へ戻す。戻したら true */
+function loopAB() {
+  if (ab.b === null || audio.currentTime < ab.b) return false;
+  audio.currentTime = ab.a;
+  return true;
+}
+function renderAB() {
+  $("#abA").classList.toggle("on", ab.a !== null);
+  $("#abB").classList.toggle("on", ab.b !== null);
+  $("#abText").textContent = ab.a === null ? ""
+    : `A ${fmtTime(ab.a)} – ` + (ab.b === null ? "" : `B ${fmtTime(ab.b)}`);
 }
 
 function renderNow(t) {
@@ -405,12 +496,10 @@ function bindEvents() {
     const files = e.target.files;
     if (files && files.length) importFiles(files).finally(() => { e.target.value = ""; });
   });
-  $("#sortKey").addEventListener("change", e => {
-    settings.sortKey = e.target.value; settings.save(); renderList(); preloadNext();
-  });
-  $("#sortDir").addEventListener("click", () => {
-    settings.sortDir = settings.sortDir === "desc" ? "asc" : "desc"; settings.save(); renderList(); preloadNext();
-  });
+  const changeSetting = (key, value) => { settings[key] = value; settings.save(); refreshList(); };
+  $("#group").addEventListener("change", e => changeSetting("group", e.target.value));
+  $("#sortKey").addEventListener("change", e => changeSetting("sortKey", e.target.value));
+  $("#sortDir").addEventListener("click", () => changeSetting("sortDir", settings.sortDir === "desc" ? "asc" : "desc"));
   $("#autoNext").checked = settings.autoNext;
   $("#autoNext").addEventListener("change", e => {
     settings.autoNext = e.target.checked; settings.save(); preloadNext();
@@ -427,6 +516,15 @@ function bindEvents() {
     b.addEventListener("click", () => setRate(Number(b.dataset.rate)));
   }
   $("#rate").addEventListener("input", e => setRate(Number(e.target.value)));
+  $("#abA").addEventListener("click", setA);
+  $("#abB").addEventListener("click", setB);
+  $("#abClear").addEventListener("click", clearAB);
+
+  // 一覧の最後が再生欄に隠れないよう、下の余白を再生欄の高さに合わせる
+  const player = $(".player");
+  new ResizeObserver(() => {
+    document.body.style.paddingBottom = player.offsetHeight + 16 + "px";
+  }).observe(player);
 
   const seek = $("#seek");
   seek.addEventListener("input", () => { seekDragging = true; $("#tCur").textContent = fmtTime(Number(seek.value)); });
@@ -444,8 +542,9 @@ function bindEvents() {
   audio.addEventListener("play", () => { $("#playBtn").textContent = "❚❚"; applyRate(); });
   audio.addEventListener("playing", () => { updatePositionState(); preloadNext(); });
   audio.addEventListener("pause", () => { $("#playBtn").textContent = "▶"; savePosition(true); renderList(); });
-  audio.addEventListener("timeupdate", () => { renderTime(); savePosition(); });
+  audio.addEventListener("timeupdate", () => { loopAB(); renderTime(); savePosition(); });
   audio.addEventListener("ended", () => {
+    if (loopAB()) { audio.play(); return; }   // B が曲の終わりにある区間リピート
     const n = settings.autoNext ? neighbor(1) : null;
     if (n) playTrack(n.id);
     else renderList();
@@ -462,6 +561,7 @@ async function init() {
   setupMediaSession();
   applyRate();
   tracks = await db.allTracks();
+  renderGroups();
   renderList();
   if (navigator.storage && navigator.storage.persist) {
     try { persisted = (await navigator.storage.persist()) ? "はい" : "いいえ"; } catch { persisted = "失敗"; }

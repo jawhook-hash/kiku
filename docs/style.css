@@ -27,7 +27,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 16px/1.45 -apple-system, "Hiragino Sans", sans-serif;
-  padding: env(safe-area-inset-top) 12px 300px;
+  /* 下の余白は再生欄の高さに合わせて app.js が付け直す */
+  padding: env(safe-area-inset-top) 12px 360px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -83,3 +84,15 @@ body {
 .presets { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 .presets .btn { padding: 5px 9px; font-size: 14px; }
 .auto { margin-left: auto; font-size: 14px; display: flex; align-items: center; gap: 4px; }
+.ab { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.ab .btn { padding: 5px 12px; font-size: 14px; }
+
+.btn.danger { color: #dc2626; }
+.sheet {
+  border: 0; border-radius: 14px; padding: 16px; width: min(92vw, 360px);
+  background: var(--card); color: var(--text);
+}
+.sheet::backdrop { background: rgba(0, 0, 0, 0.4); }
+.sheet form { display: flex; flex-direction: column; gap: 8px; }
+.sheet .btn { padding: 11px; font-size: 16px; }
+.sheet-title { margin: 0 0 4px; font-weight: 600; overflow-wrap: anywhere; }
