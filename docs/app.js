@@ -144,9 +144,19 @@ function metaLine(t) {
 function renderList() {
   const ul = $("#list");
   ul.replaceChildren();
-  for (const t of sortedTracks()) {
+  const shown = sortedTracks();
+  if (selecting) pruneSelection(shown);
+  for (const t of shown) {
     const li = document.createElement("li");
     li.classList.toggle("now", t.id === currentId);
+    if (selecting) {
+      const check = document.createElement("input");
+      check.type = "checkbox";
+      check.className = "check";
+      check.checked = selected.has(t.id);
+      check.tabIndex = -1;
+      li.append(check);
+    }
     const info = document.createElement("div");
     info.className = "info";
     const name = document.createElement("div");
@@ -162,10 +172,12 @@ function renderList() {
     more.textContent = "…";
     more.setAttribute("aria-label", "操作");
     more.addEventListener("click", e => { e.stopPropagation(); openSheet(t); });
-    li.append(info, more);
-    li.addEventListener("click", () => playTrack(t.id));
+    li.append(info);
+    if (!selecting) li.append(more);
+    li.addEventListener("click", () => (selecting ? toggleSelected(t.id) : playTrack(t.id)));
     ul.append(li);
   }
+  renderSelBar(shown);
   $("#empty").hidden = tracks.length > 0;
   $("#sortKey").value = settings.sortKey;
   $("#sortDir").textContent = settings.sortDir === "desc" ? "降順" : "昇順";
@@ -188,21 +200,89 @@ function askGroup(current) {
   return g === null ? null : g.trim();
 }
 
+const KEEP_ORIGINAL = "（Dropbox などの元のファイルは残ります）";
+
+async function setGroup(list, g) {
+  for (const t of list) {
+    t.group = g;
+    await db.putMeta(t);
+  }
+}
+async function removeTracks(list) {
+  const ids = new Set(list.map(t => t.id));
+  if (ids.has(currentId)) stopPlayback();
+  for (const id of ids) await db.remove(id);
+  tracks = tracks.filter(t => !ids.has(t.id));
+  showStorage();
+}
+
 async function changeGroup(t) {
   const g = askGroup(groupOf(t));
   if (g === null || g === groupOf(t)) return;
-  t.group = g;
-  await db.putMeta(t);
+  await setGroup([t], g);
   refreshList();
 }
 
 async function deleteTrack(t) {
-  if (!confirm(`「${baseName(t.name)}」をアプリから削除します。\n（Dropbox などの元のファイルは残ります）`)) return;
-  if (t.id === currentId) stopPlayback();
-  await db.remove(t.id);
-  tracks = tracks.filter(x => x.id !== t.id);
+  if (!confirm(`「${baseName(t.name)}」をアプリから削除します。\n${KEEP_ORIGINAL}`)) return;
+  await removeTracks([t]);
   refreshList();
-  showStorage();
+}
+
+/* ---------- 選ぶモード（まとめてグループへ・削除） ---------- */
+let selecting = false;
+const selected = new Set();
+
+function setSelecting(on) {
+  selecting = on;
+  selected.clear();
+  renderList();
+}
+function toggleSelected(id) {
+  selected.has(id) ? selected.delete(id) : selected.add(id);
+  renderList();
+}
+/* 絞り込みで見えなくなった曲は選択から外す */
+function pruneSelection(shown) {
+  const ids = new Set(shown.map(t => t.id));
+  for (const id of selected) if (!ids.has(id)) selected.delete(id);
+}
+const selectedTracks = () => tracks.filter(t => selected.has(t.id));
+
+function renderSelBar(shown) {
+  $("#selBar").hidden = !selecting;
+  $("#selectBtn").hidden = selecting;
+  if (!selecting) return;
+  const n = selected.size;
+  const allOn = shown.length > 0 && n === shown.length;
+  $("#selAll").textContent = allOn ? "すべて外す" : "すべて選択";
+  $("#selGroup").textContent = n ? `グループへ（${n}曲）` : "グループへ";
+  $("#selDelete").textContent = n ? `削除（${n}曲）` : "削除";
+  $("#selGroup").disabled = $("#selDelete").disabled = n === 0;
+}
+
+function toggleSelectAll() {
+  const shown = sortedTracks();
+  const allOn = shown.length > 0 && selected.size === shown.length;
+  selected.clear();
+  if (!allOn) for (const t of shown) selected.add(t.id);
+  renderList();
+}
+async function groupSelected() {
+  const g = askGroup("");
+  if (g === null) return;
+  const list = selectedTracks();
+  await setGroup(list, g);
+  showMsg(`${list.length}曲を「${g || "未分類"}」にしました`);
+  selecting = false;
+  refreshList();
+}
+async function deleteSelected() {
+  const list = selectedTracks();
+  if (!confirm(`${list.length}曲をアプリから削除します。\n${KEEP_ORIGINAL}`)) return;
+  await removeTracks(list);
+  selecting = false;
+  refreshList();
 }
 
 /* 曲の集まりや絞り込みが変わったとき */
@@ -516,6 +596,11 @@ function bindEvents() {
     b.addEventListener("click", () => setRate(Number(b.dataset.rate)));
   }
   $("#rate").addEventListener("input", e => setRate(Number(e.target.value)));
+  $("#selectBtn").addEventListener("click", () => setSelecting(true));
+  $("#selCancel").addEventListener("click", () => setSelecting(false));
+  $("#selAll").addEventListener("click", toggleSelectAll);
+  $("#selGroup").addEventListener("click", groupSelected);
+  $("#selDelete").addEventListener("click", deleteSelected);
   $("#abA").addEventListener("click", setA);
   $("#abB").addEventListener("click", setB);
   $("#abClear").addEventListener("click", clearAB);

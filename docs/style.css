@@ -88,6 +88,16 @@ body {
 .ab .btn { padding: 5px 12px; font-size: 14px; }
 
 .btn.danger { color: #dc2626; }
+.btn:disabled { opacity: 0.4; }
+
+.selbar {
+  position: sticky; top: env(safe-area-inset-top); z-index: 1;
+  display: flex; gap: 6px; flex-wrap: wrap;
+  background: var(--bg); padding: 6px 0 8px;
+}
+.selbar[hidden] { display: none; }
+.selbar .btn { padding: 6px 10px; font-size: 14px; }
+.list .check { width: 22px; height: 22px; pointer-events: none; accent-color: var(--accent); flex: none; }
 .sheet {
   border: 0; border-radius: 14px; padding: 16px; width: min(92vw, 360px);
   background: var(--card); color: var(--text);
