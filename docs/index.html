@@ -60,41 +60,8 @@
   </form>
 </dialog>
 
-<footer class="player">
-  <div id="nowTitle" class="now">（未選択）</div>
-  <div class="seek">
-    <span id="tCur">0:00</span>
-    <input id="seek" type="range" min="0" max="0" step="0.1" value="0" aria-label="再生位置">
-    <span id="tDur">0:00</span>
-  </div>
-  <div class="controls">
-    <button class="btn" data-skip="-30" type="button">-30</button>
-    <button class="btn" data-skip="-10" type="button">-10</button>
-    <button id="playBtn" class="btn play" type="button" aria-label="再生">▶</button>
-    <button class="btn" data-skip="10" type="button">+10</button>
-    <button class="btn" data-skip="30" type="button">+30</button>
-  </div>
-  <div class="speed">
-    <span id="rateVal" class="rate">1.00×</span>
-    <input id="rate" type="range" min="0.5" max="3" step="0.05" value="1" aria-label="速度">
-  </div>
-  <div class="presets">
-    <button class="btn" data-rate="0.8" type="button">0.8</button>
-    <button class="btn" data-rate="1" type="button">1.0</button>
-    <button class="btn" data-rate="1.25" type="button">1.25</button>
-    <button class="btn" data-rate="1.5" type="button">1.5</button>
-    <button class="btn" data-rate="2" type="button">2.0</button>
-    <label class="auto"><input id="autoNext" type="checkbox"> 次へ</label>
-  </div>
-  <div class="ab">
-    <button id="abA" class="btn" type="button">A</button>
-    <button id="abB" class="btn" type="button">B</button>
-    <button id="abClear" class="btn" type="button">解除</button>
-    <span id="abText" class="muted"></span>
-  </div>
-  <audio id="audio" preload="auto"></audio>
-</footer>
 
+<script src="player.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

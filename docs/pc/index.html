@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<title>聴 PC</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="../icon-192.png">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header class="top">
+  <h1>聴 <small class="muted">PC</small></h1>
+  <div class="tools">
+    <button id="reload" class="btn" type="button">再読み込み</button>
+    <button id="addFolder" class="btn primary" type="button">フォルダを追加</button>
+  </div>
+</header>
+
+<div id="permit" class="msg" hidden>
+  <span id="permitText"></span>
+  <button id="permitBtn" class="btn primary" type="button">読む許可を出す</button>
+</div>
+
+<div class="bar">
+  <select id="folder" aria-label="フォルダ"></select>
+  <select id="sortKey" aria-label="並べ替え">
+    <option value="name">ファイル名</option>
+    <option value="modified">ファイルの日付</option>
+    <option value="duration">長さ</option>
+  </select>
+  <button id="sortDir" class="btn" type="button">昇順</button>
+  <button id="unregister" class="btn" type="button" hidden>登録を外す</button>
+  <span id="count" class="muted"></span>
+</div>
+
+<p id="msg" class="msg" hidden></p>
+
+<ul id="list" class="list"></ul>
+<p id="empty" class="empty" hidden>「フォルダを追加」で、音声ファイルのあるフォルダ（Dropbox のフォルダなど）を選んでください。ファイルはコピーせず、その場で再生します。</p>
+
+<details class="diag">
+  <summary>情報・キー操作</summary>
+  <pre id="diag"></pre>
+</details>
+
+<script src="../player.js"></script>
+<script src="pc.js"></script>
+</body>
+</html>
