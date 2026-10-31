@@ -115,3 +115,12 @@ body {
 .sheet form { display: flex; flex-direction: column; gap: 8px; }
 .sheet .btn { padding: 11px; font-size: 16px; }
 .sheet-title { margin: 0 0 4px; font-weight: 600; overflow-wrap: anywhere; }
+/* グループを選ぶ小窓: 既存のグループが多いときはこの欄だけスクロール */
+.group-choices { display: flex; flex-direction: column; gap: 6px; max-height: 45vh; overflow-y: auto; }
+.group-choices .btn { text-align: left; overflow-wrap: anywhere; }
+.group-new { display: flex; gap: 6px; margin-top: 4px; }
+.group-new input {
+  flex: 1; min-width: 0; font-size: 16px; padding: 8px; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+.group-new .btn { flex: none; }

@@ -3,7 +3,7 @@
  * ネットワーク優先＋キャッシュ控え: 電波があれば最新、なければキャッシュで起動する。
  * 部品を変えたら CACHE の番号を上げる。
  */
-const CACHE = "kiku-v4";
+const CACHE = "kiku-v5";
 const ASSETS = [
   "./",
   "./index.html",

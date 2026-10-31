@@ -80,7 +80,7 @@ const player = createPlayer({
 });
 
 function renderGroups() {
-  const names = [...new Set(tracks.map(groupOf).filter(Boolean))].sort(collator.compare);
+  const names = groupNames();
   const hasNone = tracks.some(t => !groupOf(t));
   if (settings.group !== ALL && !names.includes(settings.group) && !(settings.group === "" && hasNone)) {
     settings.group = ALL;
@@ -139,9 +139,32 @@ function openSheet(t) {
   sheet.showModal();
 }
 
+const groupNames = () => [...new Set(tracks.map(groupOf).filter(Boolean))].sort(collator.compare);
+
+/* グループを選ぶ小窓。既存のグループ・未分類を押すか、新しい名前を打つ。
+ * 選んだ名前（未分類は ""）を返す。やめたら null */
 function askGroup(current) {
-  const g = prompt("グループ名（空欄なら未分類）", current);
-  return g === null ? null : g.trim();
+  const sheet = $("#groupSheet");
+  const choices = [...groupNames().map(n => [n, n]), ["", "未分類"]];
+  $("#groupChoices").replaceChildren(...choices.map(([name, label], i) => {
+    const b = document.createElement("button");
+    b.className = "btn" + (name === current ? " on" : "");
+    b.value = "pick:" + i;
+    b.textContent = label;
+    return b;
+  }));
+  const input = $("#groupName");
+  input.value = "";
+  sheet.returnValue = "";
+  return new Promise(resolve => {
+    sheet.addEventListener("close", () => {
+      const v = sheet.returnValue;
+      if (v.startsWith("pick:")) resolve(choices[+v.slice(5)][0]);
+      else if (v === "new") resolve(input.value.trim());
+      else resolve(null);
+    }, { once: true });
+    sheet.showModal();
+  });
 }
 
 async function setGroup(list, g) {
@@ -159,7 +182,7 @@ async function removeTracks(list) {
 }
 
 async function changeGroup(t) {
-  const g = askGroup(groupOf(t));
+  const g = await askGroup(groupOf(t));
   if (g === null || g === groupOf(t)) return;
   await setGroup([t], g);
   refreshList();
@@ -211,7 +234,7 @@ function toggleSelectAll() {
   renderList();
 }
 async function groupSelected() {
-  const g = askGroup("");
+  const g = await askGroup(null);
   if (g === null) return;
   const list = selectedTracks();
   await setGroup(list, g);
@@ -231,7 +254,7 @@ async function deleteSelected() {
 async function importFiles(files) {
   const list = [...files];
   // 「すべて」表示中ならグループ名を聞く。絞り込み中はそのグループに入れる
-  const group = settings.group === ALL ? askGroup("") : settings.group;
+  const group = settings.group === ALL ? await askGroup(null) : settings.group;
   if (group === null) return;
   let added = 0, skipped = 0;
   for (const [i, f] of list.entries()) {
@@ -299,6 +322,10 @@ function bindEvents() {
   $("#selAll").addEventListener("click", toggleSelectAll);
   $("#selGroup").addEventListener("click", groupSelected);
   $("#selDelete").addEventListener("click", deleteSelected);
+  // 名前の欄で改行を押したら「この名前で」と同じ（既定では最初のグループのボタンが押されてしまう）
+  $("#groupName").addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); $("#groupSheet").close("new"); }
+  });
 }
 
 async function init() {
